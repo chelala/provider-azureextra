@@ -28,11 +28,7 @@ import (
 // ListPublishingProfileXMLWithSecretsParameters are the configurable fields of a ListPublishingProfileXMLWithSecrets.
 type ListPublishingProfileXMLWithSecretsParameters struct {
 	ResourceGroupName string `json:"resource_group_name"`
-	// +crossplane:generate:reference:type=github.com/crossplane/provider-planetscale/apis/database/v1alpha1.Database
-	Database         *string         `json:"database,omitempty"`
-	DatabaseRef      *xpv1.Reference `json:"databaseRef,omitempty"`
-	DatabaseSelector *xpv1.Selector  `json:"databaseSelector,omitempty"`
-	AppServiceName   string          `json:"app_service_name"`
+	AppServiceName    string `json:"app_service_name"`
 }
 
 // ListPublishingProfileXMLWithSecretsObservation are the observable fields of a ListPublishingProfileXMLWithSecrets.
