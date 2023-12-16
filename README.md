@@ -1,7 +1,7 @@
-# provider-template
+# provider-azureextra
 
-`provider-template` is a minimal [Crossplane](https://crossplane.io/) Provider
-that is meant to be used as a template for implementing new Providers. It comes
+`provider-azureextra` is a minimal [Crossplane](https://crossplane.io/) Provider
+that is meant to be used as a azureextra for implementing new Providers. It comes
 with the following features that are meant to be refactored:
 
 - A `ProviderConfig` type that only points to a credentials `Secret`.
@@ -11,7 +11,7 @@ with the following features that are meant to be refactored:
 
 ## Developing
 
-1. Use this repository as a template to create a new one.
+1. Use this repository as a azureextra to create a new one.
 1. Run `make submodules` to initialize the "build" Make submodule we use for CI/CD.
 1. Rename the provider by running the following command:
 ```shell
@@ -20,7 +20,7 @@ with the following features that are meant to be refactored:
 ```
 4. Add your new type by running the following command:
 ```shell
-  export group=sample # lower case e.g. core, cache, database, storage, etc.
+  export group=armappservice # lower case e.g. core, cache, database, storage, etc.
   export type=MyType # Camel casee.g. Bucket, Database, CacheCluster, etc.
   make provider.addtype provider=${provider_name} group=${group} kind=${type}
 ```
