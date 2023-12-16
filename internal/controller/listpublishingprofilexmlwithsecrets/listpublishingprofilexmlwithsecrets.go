@@ -187,11 +187,23 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}
 
 	if cr.Status.AtProvider.ProfileGotten {
+		if cr.Status.AtProvider.DeletedVirtually {
+			// Handle observe after is deleted virtually
+			return managed.ExternalObservation{
+				ResourceExists:   false,
+				ResourceUpToDate: true,
+			}, nil
+		}
+
+		// In this point the resource is already created and the profile is already gotten and not deleted virtually
 		return managed.ExternalObservation{
+			// Handle observe after created
 			ResourceExists:   true,
 			ResourceUpToDate: true,
 		}, nil
 	} else {
+		// In this point is the first time that the resource is created
+
 		format := armappservice.PublishingProfileFormatWebDeploy
 		includeIisSettings := false
 		pubOpts := armappservice.CsmPublishingProfileOptions{
@@ -210,6 +222,7 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		}
 
 		cr.Status.AtProvider.ProfileGotten = true
+		cr.Status.AtProvider.DeletedVirtually = false
 
 		cr.Status.SetConditions(xpv1.Available())
 		return managed.ExternalObservation{
@@ -261,8 +274,8 @@ func (c *external) Delete(ctx context.Context, mg resource.Managed) error {
 		return errors.New(errNotListPublishingProfileXMLWithSecrets)
 	}
 
-	// Won't use cr for now
-	_ = cr
+	// Mark as deleted virtually
+	cr.Status.AtProvider.DeletedVirtually = true
 
 	return nil
 }

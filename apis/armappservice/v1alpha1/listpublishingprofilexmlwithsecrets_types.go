@@ -33,7 +33,8 @@ type ListPublishingProfileXMLWithSecretsParameters struct {
 
 // ListPublishingProfileXMLWithSecretsObservation are the observable fields of a ListPublishingProfileXMLWithSecrets.
 type ListPublishingProfileXMLWithSecretsObservation struct {
-	ProfileGotten bool `json:"profile_gotten,omitempty"`
+	ProfileGotten    bool `json:"profile_gotten,omitempty"`
+	DeletedVirtually bool `json:"deleted_virtually,omitempty"`
 }
 
 // A ListPublishingProfileXMLWithSecretsSpec defines the desired state of a ListPublishingProfileXMLWithSecrets.
