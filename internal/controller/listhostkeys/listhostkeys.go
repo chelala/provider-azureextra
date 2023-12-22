@@ -14,18 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package listpublishingprofilexmlwithsecrets
+package listhostkeys
 
 import (
 	"context"
-	"io"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appservice/armappservice/v2"
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	"k8s.io/apimachinery/pkg/util/json"
+
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/json"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -42,10 +42,10 @@ import (
 )
 
 const (
-	errNotListPublishingProfileXMLWithSecrets = "managed resource is not a ListPublishingProfileXMLWithSecrets custom resource"
-	errTrackPCUsage                           = "cannot track ProviderConfig usage"
-	errGetPC                                  = "cannot get ProviderConfig"
-	errGetCreds                               = "cannot get credentials"
+	errNotListHostKeys = "managed resource is not a ListHostKeys custom resource"
+	errTrackPCUsage    = "cannot track ProviderConfig usage"
+	errGetPC           = "cannot get ProviderConfig"
+	errGetCreds        = "cannot get credentials"
 
 	errNewClient = "cannot create new Service"
 )
@@ -96,9 +96,9 @@ var (
 	}
 )
 
-// Setup adds a controller that reconciles ListPublishingProfileXMLWithSecrets managed resources.
+// Setup adds a controller that reconciles ListHostKeys managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
-	name := managed.ControllerName(v1alpha1.ListPublishingProfileXMLWithSecretsGroupKind)
+	name := managed.ControllerName(v1alpha1.ListHostKeysGroupKind)
 
 	cps := []managed.ConnectionPublisher{managed.NewAPISecretPublisher(mgr.GetClient(), mgr.GetScheme())}
 	if o.Features.Enabled(features.EnableAlphaExternalSecretStores) {
@@ -106,7 +106,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 	}
 
 	r := managed.NewReconciler(mgr,
-		resource.ManagedKind(v1alpha1.ListPublishingProfileXMLWithSecretsGroupVersionKind),
+		resource.ManagedKind(v1alpha1.ListHostKeysGroupVersionKind),
 		managed.WithExternalConnecter(&connector{
 			kube:         mgr.GetClient(),
 			usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
@@ -120,7 +120,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		Named(name).
 		WithOptions(o.ForControllerRuntime()).
 		WithEventFilter(resource.DesiredStateChanged()).
-		For(&v1alpha1.ListPublishingProfileXMLWithSecrets{}).
+		For(&v1alpha1.ListHostKeys{}).
 		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
 
@@ -138,9 +138,9 @@ type connector struct {
 // 3. Getting the credentials specified by the ProviderConfig.
 // 4. Using the credentials to form a client.
 func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	cr, ok := mg.(*v1alpha1.ListPublishingProfileXMLWithSecrets)
+	cr, ok := mg.(*v1alpha1.ListHostKeys)
 	if !ok {
-		return nil, errors.New(errNotListPublishingProfileXMLWithSecrets)
+		return nil, errors.New(errNotListHostKeys)
 	}
 
 	if err := c.usage.Track(ctx, mg); err != nil {
@@ -175,9 +175,9 @@ type external struct {
 }
 
 func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
-	cr, ok := mg.(*v1alpha1.ListPublishingProfileXMLWithSecrets)
+	cr, ok := mg.(*v1alpha1.ListHostKeys)
 	if !ok {
-		return managed.ExternalObservation{}, errors.New(errNotListPublishingProfileXMLWithSecrets)
+		return managed.ExternalObservation{}, errors.New(errNotListHostKeys)
 	}
 
 	_, err := c.service.webAppsClient.Get(ctx, cr.Spec.ForProvider.ResourceGroupName, cr.Spec.ForProvider.AppServiceName, nil)
@@ -185,7 +185,7 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, err
 	}
 
-	if cr.Status.AtProvider.ProfileGotten {
+	if cr.Status.AtProvider.KeysGotten {
 		if cr.Status.AtProvider.DeletedVirtually {
 			// Handle observe after is deleted virtually
 			return managed.ExternalObservation{
@@ -203,42 +203,56 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	} else {
 		// In this point is the first time that the resource is created
 
-		format := armappservice.PublishingProfileFormatWebDeploy
-		includeIisSettings := false
-		pubOpts := armappservice.CsmPublishingProfileOptions{
-			Format:                           &format,
-			IncludeDisasterRecoveryEndpoints: &includeIisSettings,
-		}
-
-		respPubXML, err := c.service.webAppsClient.ListPublishingProfileXMLWithSecrets(ctx, cr.Spec.ForProvider.ResourceGroupName, cr.Spec.ForProvider.AppServiceName, pubOpts, nil)
+		hostKeys, err := c.service.webAppsClient.ListHostKeys(ctx, cr.Spec.ForProvider.ResourceGroupName, cr.Spec.ForProvider.AppServiceName, nil)
 		if err != nil {
-			return managed.ExternalObservation{}, errors.Wrap(err, "error getting publishing profile")
+			return managed.ExternalObservation{}, err
 		}
 
-		data, err := io.ReadAll(respPubXML.Body)
-		if err != nil {
-			return managed.ExternalObservation{}, errors.Wrap(err, "error reading publishing profile")
-		}
-
-		cr.Status.AtProvider.ProfileGotten = true
+		cr.Status.AtProvider.KeysGotten = true
 		cr.Status.AtProvider.DeletedVirtually = false
+
+		connectionDetails := flattenHostKeys(hostKeys)
 
 		cr.Status.SetConditions(xpv1.Available())
 		return managed.ExternalObservation{
-			ResourceExists:   true,
-			ResourceUpToDate: true,
-			ConnectionDetails: managed.ConnectionDetails{
-				"publishingProfileXML": data,
-			},
+			ResourceExists:    true,
+			ResourceUpToDate:  true,
+			ConnectionDetails: connectionDetails,
 		}, nil
 
 	}
 }
 
+// flattenHostKeys flattens the response from the API to the connection details
+func flattenHostKeys(hostKeys armappservice.WebAppsClientListHostKeysResponse) managed.ConnectionDetails {
+	// Prepare connection details
+	connectionDetails := make(managed.ConnectionDetails)
+
+	// Flatten FunctionKeys
+	for key, value := range hostKeys.FunctionKeys {
+		if value != nil {
+			connectionDetails["FunctionKey."+key] = []byte(*value)
+		}
+	}
+
+	// Add MasterKey
+	if hostKeys.MasterKey != nil {
+		connectionDetails["MasterKey"] = []byte(*hostKeys.MasterKey)
+	}
+
+	// Flatten SystemKeys
+	for key, value := range hostKeys.SystemKeys {
+		if value != nil {
+			connectionDetails["SystemKey."+key] = []byte(*value)
+		}
+	}
+	return connectionDetails
+}
+
 func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	cr, ok := mg.(*v1alpha1.ListPublishingProfileXMLWithSecrets)
+	cr, ok := mg.(*v1alpha1.ListHostKeys)
 	if !ok {
-		return managed.ExternalCreation{}, errors.New(errNotListPublishingProfileXMLWithSecrets)
+		return managed.ExternalCreation{}, errors.New(errNotListHostKeys)
 	}
 
 	// Won't use cr for now
@@ -252,9 +266,9 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 }
 
 func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	cr, ok := mg.(*v1alpha1.ListPublishingProfileXMLWithSecrets)
+	cr, ok := mg.(*v1alpha1.ListHostKeys)
 	if !ok {
-		return managed.ExternalUpdate{}, errors.New(errNotListPublishingProfileXMLWithSecrets)
+		return managed.ExternalUpdate{}, errors.New(errNotListHostKeys)
 	}
 
 	// Won't use cr for now
@@ -268,9 +282,9 @@ func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 }
 
 func (c *external) Delete(ctx context.Context, mg resource.Managed) error {
-	cr, ok := mg.(*v1alpha1.ListPublishingProfileXMLWithSecrets)
+	cr, ok := mg.(*v1alpha1.ListHostKeys)
 	if !ok {
-		return errors.New(errNotListPublishingProfileXMLWithSecrets)
+		return errors.New(errNotListHostKeys)
 	}
 
 	// Mark as deleted virtually

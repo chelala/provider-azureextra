@@ -37,15 +37,8 @@ guide may also be of use.
 [CONTRIBUTING.md]: https://github.com/crossplane/crossplane/blob/master/CONTRIBUTING.md
 [provider-dev]: https://github.com/crossplane/crossplane/blob/master/contributing/guide-provider-development.md
 
-## Connecting to private Azure Container Registry
+## Publish to upbound
 
 ```shell
-az login
-
-az acr token create --name crossplanecli --registry petlab --repository crossplane/provider-azureextra content/write content/read 
-
-az acr login --name petlab
-
-
-
-crossplane --verbose xpkg push -f provider-azureextra-v0.0.0-3.g5dfbf0c.xpkg petlab.azurecr.io/crossplane/provider-azureextra:v0.0.1 
+up xpkg push xpkg.upbound.io/chelala/provider-azureextra:v0.0.1  -f linux_arm64/provider-azureextra-v0.0.0-4.gdb21165.xpkg,linux_amd64/provider-azureextra-v0.0.0-4.gdb21165.xpkg 
+```
